@@ -5,7 +5,7 @@ Selectable response voices for [Pi](https://pi.dev). Change how your assistant r
 ## Install
 
 ```sh
-pi install git:github.com/dys-org/pi-voice@v0.2.0
+pi install git:github.com/dys-org/pi-voice@v0.3.0
 ```
 
 Run `/reload` in an existing Pi session, or restart Pi.
@@ -39,12 +39,14 @@ Add your own voices in **`~/.pi/agent/voices/<name>.md`**—no package edits nee
 For example, create `~/.pi/agent/voices/warm.md`:
 
 ```md
-Warm and conversational
+---
+description: Warm and conversational
+---
 
 Use a friendly, conversational tone. Keep explanations clear and avoid excessive enthusiasm.
 ```
 
-Run `/reload`, then `/voice warm`. The first line is the picker description; the remaining Markdown is the prompt. Both must be nonempty.
+Run `/reload`, then `/voice warm`. YAML frontmatter must contain a nonempty string `description`; the Markdown body is the prompt and must be nonempty. Standard YAML quoting and multiline descriptions are supported.
 
 - Personal files override bundled `voices/*.md` presets with the same filename. For example, `concise.md` replaces the built-in concise voice.
 - `default` is reserved and cannot be overridden.
@@ -53,6 +55,10 @@ Run `/reload`, then `/voice warm`. The first line is the picker description; the
 - Voices are refreshed on session startup and `/reload`. Adding, editing, or deleting a file requires a reload to affect a running session.
 - Removing a selected personal voice falls back to `default` with a warning unless a built-in voice has the same name.
 - Personal voices live outside the managed package checkout and survive package updates.
+
+## Migrating from v0.2.0
+
+Voice files now require YAML frontmatter. The old first-line-description syntax is not supported. Convert existing personal files manually: move the description into frontmatter as shown above, leaving the prompt in the Markdown body. User files are not automatically rewritten. Invalid old-format overrides leave built-ins intact; an invalid personal-only selected voice falls back to `default` with a warning.
 
 ## Compatibility
 
@@ -63,10 +69,11 @@ Remove or disable the old standalone output-style extension before loading this 
 ## Development
 
 ```sh
+npm install --legacy-peer-deps
 npm test
 ```
 
-Tests use Node.js 22.13+ and require no installed dependencies. Pi supplies the runtime peer dependency and loads TypeScript directly.
+Tests use Node.js 22.13+ and the real `yaml` runtime dependency. `--legacy-peer-deps` avoids installing Pi's host-provided peer dependency during development. Pi installs `yaml` when installing the package, supplies its own runtime peer dependency, and loads TypeScript directly.
 
 ## License
 

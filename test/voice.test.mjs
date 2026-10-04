@@ -1,15 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { stripTypeScriptTypes } from 'node:module';
+import { createRequire, stripTypeScriptTypes } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const sourceURL = new URL('../voice.ts', import.meta.url);
+const yamlURL = pathToFileURL(createRequire(import.meta.url).resolve('yaml')).href;
 const source = stripTypeScriptTypes(readFileSync(sourceURL, 'utf8'))
   .replace(/import \{\s*getAgentDir\s*\} from [^;]+;/, 'const getAgentDir = () => globalThis.__voiceTestDir;')
+  .replace('from "yaml"', `from ${JSON.stringify(yamlURL)}`)
   .replaceAll('import.meta.url', JSON.stringify(sourceURL.href));
 const { default: voice } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+
+function markdown(description, prompt) {
+  return `---\ndescription: ${JSON.stringify(description)}\n---\n\n${prompt}\n`;
+}
 
 function setup(t, state, personal = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pi-voice-'));
@@ -88,10 +95,10 @@ test('failed persistence does not change active selection', async (t) => {
 
 test('personal additions and overrides load before restoring state', async (t) => {
   const s = setup(t, ['voice.json', '{"voice":"warm"}'], {
-    'warm.md': 'Warm and conversational\r\n\r\nBe warm.\r\n',
-    'concise.md': 'My concise voice\n\nKeep it tiny.',
+    'warm.md': '\uFEFF' + markdown('Warm and conversational', 'Be warm.').replaceAll('\n', '\r\n'),
+    'concise.md': markdown('My concise voice', 'Keep it tiny.'),
     'ignored.txt': 'Ignored\nDo not load',
-    '__proto__.md': 'Unusual name\nStill a voice.',
+    '__proto__.md': markdown('Unusual name', 'Still a voice.'),
   });
   assert.equal(s.sections().voice, 'Be warm.');
   assert.match(s.commands.voice.getArgumentCompletions('warm')[0].label, /Warm and conversational/);
@@ -104,10 +111,10 @@ test('personal additions and overrides load before restoring state', async (t) =
 });
 
 test('refresh sees additions, edits, deletion, and resets removed overrides', async (t) => {
-  const s = setup(t, ['voice.json', '{"voice":"concise"}'], { 'concise.md': 'Custom\nCustom prompt' });
+  const s = setup(t, ['voice.json', '{"voice":"concise"}'], { 'concise.md': markdown('Custom', 'Custom prompt') });
   assert.equal(s.sections().voice, 'Custom prompt');
-  writeFileSync(join(s.dir, 'voices', 'concise.md'), 'Edited\nEdited prompt');
-  writeFileSync(join(s.dir, 'voices', 'warm.md'), 'Warm\nWarm prompt');
+  writeFileSync(join(s.dir, 'voices', 'concise.md'), markdown('Edited', 'Edited prompt'));
+  writeFileSync(join(s.dir, 'voices', 'warm.md'), markdown('Warm', 'Warm prompt'));
   s.handlers.session_start({}, s.ctx);
   assert.equal(s.sections().voice, 'Edited prompt');
   assert.match(s.commands.voice.getArgumentCompletions('con')[0].label, /Edited/);
@@ -124,10 +131,10 @@ test('refresh sees additions, edits, deletion, and resets removed overrides', as
 
 test('invalid files warn without replacing built-ins or reserved default', async (t) => {
   const s = setup(t, ['voice.json', '{"voice":"concise"}'], {
-    'concise.md': 'Description only\n  \n',
-    'default.md': 'Attempted override\nDo something',
+    'concise.md': markdown('Description only', '  '),
+    'default.md': markdown('Attempted override', 'Do something'),
     'empty.md': '',
-    'no-description.md': '\nSome prompt',
+    'no-description.md': markdown('', 'Some prompt'),
   });
   assert.match(s.sections().voice, /Lead with the result/);
   for (const name of ['concise', 'default', 'empty', 'no-description']) {
@@ -149,7 +156,7 @@ test('directory and file read failures preserve built-ins', (t) => {
   mkdirSync(directory);
   // A self-referencing symlink reliably fails even when tests run as root.
   symlinkSync('concise.md', join(directory, 'concise.md'));
-  writeFileSync(join(directory, 'warm.md'), 'Warm\nWarm prompt');
+  writeFileSync(join(directory, 'warm.md'), markdown('Warm', 'Warm prompt'));
   s.handlers.session_start({}, s.ctx);
   assert.equal(s.commands.voice.getArgumentCompletions('warm')[0].value, 'warm');
   assert.match(s.sections().voice, /Lead with the result/);
@@ -157,7 +164,7 @@ test('directory and file read failures preserve built-ins', (t) => {
 });
 
 test('removing a saved override automatically restores the bundled voice', (t) => {
-  const s = setup(t, ['voice.json', '{"voice":"concise"}'], { 'concise.md': 'Custom\nCustom prompt' });
+  const s = setup(t, ['voice.json', '{"voice":"concise"}'], { 'concise.md': markdown('Custom', 'Custom prompt') });
   assert.equal(s.sections().voice, 'Custom prompt');
   rmSync(join(s.dir, 'voices', 'concise.md'));
   s.handlers.session_start({}, s.ctx);
@@ -165,8 +172,51 @@ test('removing a saved override automatically restores the bundled voice', (t) =
   assert.deepEqual(s.notices, []);
 });
 
+test('standard YAML descriptions and body separators are preserved', async (t) => {
+  for (const [metadata, description] of [
+    ['description: Plain description', 'Plain description'],
+    ['description: "Quoted: description"', 'Quoted: description'],
+    ['description: >\n  Folded\n  description', 'Folded description'],
+    ['description: |\n  Two\n  lines', 'Two\nlines'],
+  ]) {
+    const s = setup(t, undefined, { 'custom.md': `---\n${metadata}\n---\n\nFirst paragraph\n\n---\n\nLast paragraph` });
+    assert.deepEqual(s.notices, []);
+    assert.ok(s.commands.voice.getArgumentCompletions('custom')[0].label.endsWith(description));
+    await s.commands.voice.handler('custom', s.ctx);
+    assert.equal(s.sections().voice, 'First paragraph\n\n---\n\nLast paragraph');
+  }
+});
+
+test('invalid frontmatter and old syntax are rejected with per-file isolation', (t) => {
+  const invalid = [
+    'Old description\nOld prompt',
+    '---\ndescription: Missing closing delimiter\nPrompt',
+    '---\ndescription: [\n---\nPrompt',
+    '---\ndescription: One\ndescription: Two\n---\nPrompt',
+    '---\nother: Missing description\n---\nPrompt',
+    ...['null', '42', 'true', '[]', '{}', '""', '"   "'].map(value => `---\ndescription: ${value}\n---\nPrompt`),
+    markdown('Empty body', ''),
+  ];
+  for (const contents of invalid) {
+    const s = setup(t, ['voice.json', '{"voice":"concise"}'], {
+      'concise.md': contents,
+      'warm.md': markdown('Warm', 'Be warm'),
+    });
+    assert.match(s.sections().voice, /Lead with the result/);
+    assert.ok(s.notices.some(([message, level]) => level === 'warning' && message.includes('concise.md')));
+    assert.equal(s.commands.voice.getArgumentCompletions('warm')[0].value, 'warm');
+  }
+});
+
+test('old-format personal-only selection falls back to default', (t) => {
+  const s = setup(t, ['voice.json', '{"voice":"warm"}'], { 'warm.md': 'Warm\nBe warm' });
+  assert.deepEqual(s.sections(), { unrelated: 'keep' });
+  assert.equal(s.commands.voice.getArgumentCompletions('warm'), null);
+  assert.equal(s.notices.filter(([, level]) => level === 'warning').length, 2);
+});
+
 test('extension instances keep independent catalogs', async (t) => {
-  const a = setup(t, undefined, { 'warm.md': 'Warm\nBe warm' });
+  const a = setup(t, undefined, { 'warm.md': markdown('Warm', 'Be warm') });
   const b = setup(t);
   assert.equal(b.commands.voice.getArgumentCompletions('warm'), null);
   await a.commands.voice.handler('warm', a.ctx);

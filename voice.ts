@@ -1,13 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { parse } from "yaml";
 import { type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 type Voice = { description: string; prompt: string };
 
 function parseVoice(contents: string): Voice {
-	const [description, ...body] = contents.split("\n");
-	return { description: description.trim(), prompt: body.join("\n").trim() };
+	const lines = contents.replace(/^\uFEFF/, "").split(/\r?\n/);
+	if (lines[0] !== "---") throw new Error("Expected YAML frontmatter starting with ---");
+	const end = lines.findIndex((line, index) => index > 0 && line === "---");
+	if (end < 0) throw new Error("Expected closing --- for YAML frontmatter");
+	const metadata = parse(lines.slice(1, end).join("\n"));
+	const description: unknown = metadata?.description;
+	const prompt = lines.slice(end + 1).join("\n").trim();
+	if (typeof description !== "string" || !description.trim() || !prompt) {
+		throw new Error("Expected a nonempty string description in frontmatter and a nonempty Markdown body");
+	}
+	return { description: description.trim(), prompt };
 }
 
 const bundledVoices: Record<string, Voice> = Object.fromEntries(
@@ -48,7 +58,6 @@ export default function voice(pi: ExtensionAPI) {
 			try {
 				if (!name || name === "default") throw new Error("Voice name must be nonempty and cannot be default");
 				const preset = parseVoice(readFileSync(path, "utf8"));
-				if (!preset.description || !preset.prompt) throw new Error("Expected a description on line one and a nonempty prompt below it");
 				// Treat names such as __proto__ as ordinary presets, too.
 				Object.defineProperty(voices, name, { value: preset, enumerable: true, configurable: true, writable: true });
 			} catch (error) {
