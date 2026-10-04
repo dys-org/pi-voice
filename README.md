@@ -5,7 +5,7 @@ Selectable response voices for [Pi](https://pi.dev). Change how your assistant r
 ## Install
 
 ```sh
-pi install git:github.com/dys-org/pi-voice@v0.3.0
+pi install git:github.com/dys-org/pi-voice@v0.3.1
 ```
 
 Run `/reload` in an existing Pi session, or restart Pi.
@@ -69,11 +69,11 @@ Remove or disable the old standalone output-style extension before loading this 
 ## Development
 
 ```sh
-npm install --legacy-peer-deps
+npm ci
 npm test
 ```
 
-Tests use Node.js 22.13+ and the real `yaml` runtime dependency. `--legacy-peer-deps` avoids installing Pi's host-provided peer dependency during development. Pi installs `yaml` when installing the package, supplies its own runtime peer dependency, and loads TypeScript directly.
+Tests use Node.js 22.19+ and the real public `parseFrontmatter` export from Pi 1.0.2, installed as a development dependency. At runtime, Pi supplies this helper and loads TypeScript directly; this extension has no runtime dependencies.
 
 ## License
 

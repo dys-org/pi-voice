@@ -1,19 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse } from "yaml";
-import { type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
 type Voice = { description: string; prompt: string };
 
 function parseVoice(contents: string): Voice {
-	const lines = contents.replace(/^\uFEFF/, "").split(/\r?\n/);
-	if (lines[0] !== "---") throw new Error("Expected YAML frontmatter starting with ---");
-	const end = lines.findIndex((line, index) => index > 0 && line === "---");
-	if (end < 0) throw new Error("Expected closing --- for YAML frontmatter");
-	const metadata = parse(lines.slice(1, end).join("\n"));
-	const description: unknown = metadata?.description;
-	const prompt = lines.slice(end + 1).join("\n").trim();
+	const { frontmatter, body } = parseFrontmatter<{ description?: unknown }>(contents);
+	const description = frontmatter.description;
+	const prompt = body.trim();
 	if (typeof description !== "string" || !description.trim() || !prompt) {
 		throw new Error("Expected a nonempty string description in frontmatter and a nonempty Markdown body");
 	}

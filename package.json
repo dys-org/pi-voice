@@ -1,6 +1,6 @@
 {
   "name": "@dys-org/pi-voice",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Selectable response voices for Pi",
   "keywords": [
     "pi-package",
@@ -31,7 +31,7 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
-  "dependencies": {
-    "yaml": "^2.9.1"
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.0.2"
   }
 }

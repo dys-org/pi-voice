@@ -1,16 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createRequire, stripTypeScriptTypes } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { stripTypeScriptTypes } from 'node:module';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const sourceURL = new URL('../voice.ts', import.meta.url);
-const yamlURL = pathToFileURL(createRequire(import.meta.url).resolve('yaml')).href;
+const piURL = import.meta.resolve('@earendil-works/pi-coding-agent');
 const source = stripTypeScriptTypes(readFileSync(sourceURL, 'utf8'))
-  .replace(/import \{\s*getAgentDir\s*\} from [^;]+;/, 'const getAgentDir = () => globalThis.__voiceTestDir;')
-  .replace('from "yaml"', `from ${JSON.stringify(yamlURL)}`)
+  .replace(/import \{[^}]*\} from "@earendil-works\/pi-coding-agent";/,
+    `import { parseFrontmatter } from ${JSON.stringify(piURL)};\nconst getAgentDir = () => globalThis.__voiceTestDir;`)
   .replaceAll('import.meta.url', JSON.stringify(sourceURL.href));
 const { default: voice } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
