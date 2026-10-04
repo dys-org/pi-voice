@@ -5,7 +5,7 @@ Selectable response voices for [Pi](https://pi.dev). Change how your assistant r
 ## Install
 
 ```sh
-pi install git:github.com/dys-org/pi-voice@v0.1.0
+pi install git:github.com/dys-org/pi-voice@v0.2.0
 ```
 
 Run `/reload` in an existing Pi session, or restart Pi.
@@ -34,7 +34,25 @@ Selections apply on the next turn and persist across sessions in `~/.pi/agent/vo
 
 ## Voice files
 
-Presets live in `voices/<name>.md`. The first line is the picker description; the remaining Markdown is the prompt. To add a preset in a local checkout, add a Markdown file and reload Pi. `default` is reserved and always means no added instructions.
+Add your own voices in **`~/.pi/agent/voices/<name>.md`**—no package edits needed. If you use `PI_CODING_AGENT_DIR`, put the `voices/` directory inside that agent directory instead.
+
+For example, create `~/.pi/agent/voices/warm.md`:
+
+```md
+Warm and conversational
+
+Use a friendly, conversational tone. Keep explanations clear and avoid excessive enthusiasm.
+```
+
+Run `/reload`, then `/voice warm`. The first line is the picker description; the remaining Markdown is the prompt. Both must be nonempty.
+
+- Personal files override bundled `voices/*.md` presets with the same filename. For example, `concise.md` replaces the built-in concise voice.
+- `default` is reserved and cannot be overridden.
+- Only `.md` files directly inside the personal directory are loaded. Project voices are not loaded.
+- Unreadable or invalid files produce a warning and are skipped; an invalid override leaves the built-in intact.
+- Voices are refreshed on session startup and `/reload`. Adding, editing, or deleting a file requires a reload to affect a running session.
+- Removing a selected personal voice falls back to `default` with a warning unless a built-in voice has the same name.
+- Personal voices live outside the managed package checkout and survive package updates.
 
 ## Compatibility
 

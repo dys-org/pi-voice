@@ -1,6 +1,6 @@
 {
   "name": "@dys-org/pi-voice",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Selectable response voices for Pi",
   "keywords": [
     "pi-package",

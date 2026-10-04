@@ -3,26 +3,60 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync
 import { join } from "node:path";
 import { type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
 
-const voices: Record<string, { description: string; prompt: string }> = Object.fromEntries(
+type Voice = { description: string; prompt: string };
+
+function parseVoice(contents: string): Voice {
+	const [description, ...body] = contents.split("\n");
+	return { description: description.trim(), prompt: body.join("\n").trim() };
+}
+
+const bundledVoices: Record<string, Voice> = Object.fromEntries(
 	readdirSync(new URL("./voices/", import.meta.url))
 		.filter((name) => name.endsWith(".md"))
 		.sort()
 		.map((file) => {
-			const [description, ...body] = readFileSync(new URL(`./voices/${file}`, import.meta.url), "utf8").split("\n");
-			return [file.slice(0, -3), { description, prompt: body.join("\n").trim() }];
+			return [file.slice(0, -3), parseVoice(readFileSync(new URL(`./voices/${file}`, import.meta.url), "utf8"))];
 		}),
 );
-voices.default = { description: "No voice instructions", prompt: "" };
-const names = Object.keys(voices).sort();
-
-function isVoiceName(value: unknown): value is string {
-	return typeof value === "string" && Object.hasOwn(voices, value);
-}
+bundledVoices.default = { description: "No voice instructions", prompt: "" };
 
 export default function voice(pi: ExtensionAPI) {
 	const agentDir = getAgentDir();
 	const statePath = join(agentDir, "voice.json");
 	let active = "default";
+	let voices = { ...bundledVoices };
+	let names = Object.keys(voices).sort();
+
+	function isVoiceName(value: unknown): value is string {
+		return typeof value === "string" && Object.hasOwn(voices, value);
+	}
+
+	function loadPersonalVoices(warn: (message: string) => void) {
+		voices = { ...bundledVoices };
+		const directory = join(agentDir, "voices");
+		let files: string[] = [];
+		try {
+			files = readdirSync(directory).filter((name) => name.endsWith(".md")).sort();
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+				warn(`Could not load voices from ${directory}; using built-ins. ${String(error)}`);
+			}
+		}
+		for (const file of files) {
+			const path = join(directory, file);
+			const name = file.slice(0, -3);
+			try {
+				if (!name || name === "default") throw new Error("Voice name must be nonempty and cannot be default");
+				const preset = parseVoice(readFileSync(path, "utf8"));
+				if (!preset.description || !preset.prompt) throw new Error("Expected a description on line one and a nonempty prompt below it");
+				// Treat names such as __proto__ as ordinary presets, too.
+				Object.defineProperty(voices, name, { value: preset, enumerable: true, configurable: true, writable: true });
+			} catch (error) {
+				warn(`Could not load ${path}; skipping personal voice. ${String(error)}`);
+			}
+		}
+		names = Object.keys(voices).sort();
+	}
 
 	function formatVoiceLabel(name: string) {
 		return `${name}${name === active ? " (active)" : ""} — ${voices[name].description}`;
@@ -30,6 +64,7 @@ export default function voice(pi: ExtensionAPI) {
 
 	pi.on("session_start", (_event, ctx) => {
 		active = "default";
+		loadPersonalVoices((message) => ctx.ui.notify(message, "warning"));
 		try {
 			let contents: string;
 			try {
@@ -55,7 +90,7 @@ export default function voice(pi: ExtensionAPI) {
 	});
 
 	const command: Parameters<ExtensionAPI["registerCommand"]>[1] = {
-		description: "Choose a voice (default, concise, proactive, explanatory, learning)",
+		description: "Choose a built-in or personal response voice",
 		getArgumentCompletions: (prefix) => {
 			const matches = names.filter((name) => name.startsWith(prefix));
 			return matches.length ? matches.map((name) => ({ value: name, label: formatVoiceLabel(name) })) : null;
