@@ -1,0 +1,34 @@
+{
+  "name": "@dys-org/pi-voice",
+  "version": "0.1.0",
+  "description": "Selectable response voices for Pi",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "voice"
+  ],
+  "license": "MIT",
+  "author": "David Soards",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dys-org/pi-voice.git"
+  },
+  "files": [
+    "voice.ts",
+    "voices",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./voice.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
