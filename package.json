@@ -10,6 +10,7 @@
   "license": "MIT",
   "author": "David Soards",
   "type": "module",
+  "packageManager": "pnpm@11.25.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dys-org/pi-voice.git"
@@ -32,6 +33,6 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.0.2"
+    "@earendil-works/pi-coding-agent": "^1.0.2"
   }
 }

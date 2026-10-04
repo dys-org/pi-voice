@@ -69,11 +69,11 @@ Remove or disable the old standalone output-style extension before loading this 
 ## Development
 
 ```sh
-npm ci
-npm test
+pnpm install --frozen-lockfile
+pnpm test
 ```
 
-Tests use Node.js 22.19+ and the real public `parseFrontmatter` export from Pi 1.0.2, installed as a development dependency. At runtime, Pi supplies this helper and loads TypeScript directly; this extension has no runtime dependencies.
+Use pnpm 11.25.0 (pinned in `package.json`). Dependency build scripts for `@google/genai`, `esbuild`, and `protobufjs` are explicitly disabled in `pnpm-workspace.yaml`; the tests do not require them. Tests use Node.js 22.19+ and the real public `parseFrontmatter` export from Pi 1.x, installed as a development dependency. At runtime, Pi supplies this helper and loads TypeScript directly; this extension has no runtime dependencies.
 
 ## License
 
